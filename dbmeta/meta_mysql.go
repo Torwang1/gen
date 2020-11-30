@@ -28,7 +28,7 @@ func LoadMysqlMeta(db *sql.DB, sqlType, sqlDatabase, tableName string) (DbTableM
 	}
 
 	m.ddl = ddl
-	colsDDL, primaryKeys := mysqlParseDDL(ddl)
+	colsDDL, primaryKeys, uniqueIndexes := mysqlParseDDL(ddl)
 
 	infoSchema, err := LoadTableInfoFromMSSqlInformationSchema(db, tableName)
 	if err != nil {
@@ -105,6 +105,22 @@ func LoadMysqlMeta(db *sql.DB, sqlType, sqlDatabase, tableName string) (DbTableM
 		m.columns[i] = colMeta
 	}
 
+	// DbTableMeta 保存 UNIQUE 索引字段
+	m.uniques = make(map[string][]*columnMeta)
+	for unique, names := range uniqueIndexes {
+		// 获取 ColumnMeta 列表
+		cols := make([]*columnMeta, 0, len(names))
+		for _, n := range names {
+			for _, c := range m.columns {
+				if c.name == n {
+					cols = append(cols, c)
+				}
+			}
+		}
+
+		m.uniques[unique] = cols
+	}
+
 	m = updateDefaultPrimaryKey(m)
 	return m, nil
 }
@@ -129,7 +145,9 @@ func mysqlLoadDDL(db *sql.DB, tableName string) (ddl string, err error) {
 
 }
 
-func mysqlParseDDL(ddl string) (colsDDL map[string]string, primaryKeys []string) {
+func mysqlParseDDL(ddl string) (colsDDL map[string]string, primaryKeys []string, uniqeIndex map[string][]string) {
+	uniqeIndex = map[string][]string{}
+
 	colsDDL = make(map[string]string)
 	lines := strings.Split(ddl, "\n")
 	for _, line := range lines {
@@ -162,8 +180,38 @@ func mysqlParseDDL(ddl string) (colsDDL map[string]string, primaryKeys []string)
 				currentIdx = idxR + 1
 				primaryKeys = append(primaryKeys, line[idxL+1:idxR])
 			}
+		} else if strings.HasPrefix(line, "UNIQUE KEY") {
+			var keyNum = strings.Count(line, "`") / 2
+			var count = 0
+			var currentIdx = 0
+			var idxL = 0
+			var idxR = 0
+
+			// UNIQUE index name
+			idxL = indexAt(line, "`", currentIdx)
+			currentIdx = idxL + 1
+			idxR = indexAt(line, "`", currentIdx)
+			currentIdx = idxR + 1
+			count++
+
+			uniquename, keys := line[idxL+1:idxR], []string{}
+
+			for {
+				if count >= keyNum {
+					break
+				}
+				count++
+				idxL = indexAt(line, "`", currentIdx)
+				currentIdx = idxL + 1
+				idxR = indexAt(line, "`", currentIdx)
+				currentIdx = idxR + 1
+				keys = append(keys, line[idxL+1:idxR])
+			}
+
+			uniqeIndex[uniquename] = keys
 		}
 	}
+	// fmt.Printf("uniqe index:%+v\n", uniqeIndex)
 	return
 }
 

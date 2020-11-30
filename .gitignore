@@ -45,3 +45,4 @@ tests/
 .env
 
 /.vscode
+/run.sh

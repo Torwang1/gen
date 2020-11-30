@@ -82,6 +82,11 @@ func (ci *columnMeta) IsAutoIncrement() bool {
 	return ci.isAutoIncrement
 }
 
+// TODO: https://gorm.io/docs/indexes.html 保存 UNIQUE (名称 + priority)
+// type UserIndex struct {
+//   OID          int64  `gorm:"index:idx_id;index:idx_oid,unique"`
+//   MemberNumber string `gorm:"index:idx_id"`
+// }
 type columnMeta struct {
 	index int
 	// ct              *sql.ColumnType
@@ -178,6 +183,7 @@ type DbTableMeta interface {
 	SQLDatabase() string
 	TableName() string
 	DDL() string
+	Uniques() map[string][]ColumnMeta
 }
 
 // ColumnMeta meta data for a column
@@ -205,6 +211,7 @@ type dbTableMeta struct {
 	columns       []*columnMeta
 	ddl           string
 	primaryKeyPos int
+	uniques       map[string][]*columnMeta
 }
 
 // PrimaryKeyPos ordinal pos of primary key
@@ -237,6 +244,18 @@ func (m *dbTableMeta) Columns() []ColumnMeta {
 	return cols
 }
 
+func (m *dbTableMeta) Uniques() map[string][]ColumnMeta {
+	result := map[string][]ColumnMeta{}
+	for uniqe, cols := range m.uniques {
+		c := make([]ColumnMeta, len(cols))
+		for i, v := range cols {
+			c[i] = ColumnMeta(v)
+		}
+		result[uniqe] = c
+	}
+	return result
+}
+
 // DDL string for a sql table
 func (m *dbTableMeta) DDL() string {
 	return m.ddl
@@ -254,6 +273,7 @@ type ModelInfo struct {
 	DBMeta          DbTableMeta
 	Instance        interface{}
 	CodeFields      []*FieldInfo
+	CodeUniques     map[string][]*FieldInfo // 唯一索引
 }
 
 // Notes notes on table generation
@@ -794,8 +814,22 @@ func GenerateModelInfo(tables map[string]*ModelInfo, dbMeta DbTableMeta,
 		ShortStructName: strings.ToLower(string(structName[0])),
 		Fields:          code,
 		CodeFields:      fields,
+		CodeUniques:     make(map[string][]*FieldInfo),
 		DBMeta:          dbMeta,
 		Instance:        instance,
+	}
+
+	// 填充唯一索引
+	for unique, fields := range dbMeta.Uniques() {
+		fis := make([]*FieldInfo, len(fields))
+		for i, f := range fields {
+			for _, c := range modelInfo.CodeFields {
+				if f.Name() == c.ColumnMeta.Name() {
+					fis[i] = c
+				}
+			}
+		}
+		modelInfo.CodeUniques[unique] = fis
 	}
 
 	return modelInfo, nil

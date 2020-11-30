@@ -10,4 +10,25 @@ func Get{{.StructName}}(ctx context.Context,{{range $field := .TableInfo.CodeFie
 
 	return record, nil
 }
+
+{{$StructName := .StructName}}
+{{$modelPackageName := .modelPackageName}}
+{{$TableName := .TableName}}
+{{$DatabaseName := .DatabaseName}}
+
+{{range $unique,$fields:= .TableInfo.CodeUniques}}
+// Get{{$StructName}}UseIndex{{toUpperCamelCase $unique}} is a function to get a single record from the {{$TableName}} table in the {{$DatabaseName}} database
+// error - ErrNotFound, db Find error
+func Get{{$StructName}}UseIndex{{toUpperCamelCase $unique}}(ctx context.Context,{{range $field := $fields}} {{toLowerCamelCase $field.GoFieldName}} {{$field.GoFieldType}},{{end -}}) (record *{{$modelPackageName}}.{{$StructName}}, err error) {
+	record = &{{$modelPackageName}}.{{$StructName}}{}
+	if err = DB.First(record, {{range $field := $fields}} {{toLowerCamelCase $field.GoFieldName}},{{end -}}).Error; err != nil {
+	    err = ErrNotFound
+		return record, err
+	}
+
+	return record, nil
+}
+{{end}}
+
+
 {{end}}
