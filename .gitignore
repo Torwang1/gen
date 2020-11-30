@@ -43,3 +43,5 @@ example/daos/
 example/models/
 tests/
 .env
+
+/.vscode
