@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Torwang1/strcase"
 	"github.com/bxcodec/faker/v3"
-	"github.com/iancoleman/strcase"
 	dynamicstruct "github.com/ompluscator/dynamic-struct"
 )
 
@@ -22,6 +22,10 @@ type metaDataLoader func(db *sql.DB, sqlType, sqlDatabase, tableName string) (Db
 
 var metaDataFuncs = make(map[string]metaDataLoader)
 var sqlMappings = make(map[string]*SQLMapping)
+
+func init() {
+	strcase.ConfigureAcronym("id", "ID")
+}
 
 func init() {
 	metaDataFuncs["sqlite3"] = LoadSqliteMeta
